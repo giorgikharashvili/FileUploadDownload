@@ -1,0 +1,111 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using File_Upload.Services; @*allows to use services defined there for example: FileUpload.cs*@
+
+@*injects dependency of type IFileUpload this means fileUpload
+is an instance of a service responsible for handling file uploads*@
+
+@inject IFileUpload fileUpload;
+
+<div class="col-6">
+	<h1>File Upload in Blazor</h1>
+	<div class="form-group">
+
+		@*InputFile allows users to select files
+		 OnChange attaches an event handler that gets triggered when the user
+		 selects files
+		 multiple allows for multiple files to be selected by users
+		*@
+		<InputFile OnChange="OnInputFileChange" multiple />
+		<button class="btn btn-sm btn-success" @onclick="UploadFiles">Upload</button>
+		<br />
+		<br />
+		@{
+			var progressCss = "progress" + (displayProgress ? "" : "d-none");
+			var progressWidthStyle = progressPercent + "%";
+		}
+		<div class="@progressCss">
+			<div class="progress-bar" role="progressbar" style="width:@progressWidthStyle" area-valuenow="@progressPercent" area-minvalue="0" area-maxvalue="100">
+
+			</div>
+		</div>
+	</div>
+	<br />
+	<label>@labelText</label>
+	<br />
+</div>
+@if(previewImages.Count > 0) {
+	<h3>Selected Files</h3>
+	<div class="card">
+		<div class="row align-items-start">
+			@foreach (var item in previewImages) {
+				<div class="col-2">
+					<img class="rounded float-left" src="@item" width="100" height="100" />
+				</div>
+			}
+		</div>
+	</div>
+}
+
+
+
+@code {
+
+	private bool displayProgress;
+	private int progressPercent;
+
+	//IReadOnlyList is a read-only list of elements
+	//IFileUpload is an interface that defines a method to upload files
+	//IBrowserFile represents a file uploaded from the "Choose file" button (chems shemtxvevashi Browser button)
+	//selectedFiles holds the list of files the user selects
+	IReadOnlyList<IBrowserFile> selectedFiles;
+	//This will hold the locations of the images [URLs]
+	private IList<string> previewImages = new List<string>();
+
+	private string labelText = "Clear";
+	//This method runs when user selects files
+	//InputFileChangeEventArgs holds the details of the files
+	//that user selects like for example Name or Size of file that user selected
+	private async Task OnInputFileChange(InputFileChangeEventArgs e)
+	{
+		//Creates a new List type of IBrowserFile to store the files that the user selects
+		selectedFiles = new List<IBrowserFile>();
+		//e.GetMultipleFiles() retrieves all selected files and stores them in selectedFiles
+		selectedFiles = e.GetMultipleFiles();
+		foreach(var file in selectedFiles)
+		{
+			var imageUrl = await fileUpload.GeneratePreviewUrl(file);
+			previewImages.Add(imageUrl);
+		}
+	}
+
+
+	private async Task UploadFiles()
+	{
+		try
+		{
+			if (selectedFiles is not null && selectedFiles.Count > 0)
+			{
+				var uploaded = 0;
+				displayProgress = true;
+
+				foreach (var file in selectedFiles)
+				{
+					//This line sends files to IFileUpload interface
+					await fileUpload.UploadFile(file);
+					uploaded++;
+					progressPercent = (int)((uploaded / selectedFiles.Count) * 100);
+				}
+				displayProgress = false;
+				labelText = $"Upload of {selectedFiles.Count} files successful";
+				StateHasChanged();
+			}
+
+		}
+		catch (Exception ex)
+		{
+			labelText = $"Upload Failed due to {ex.Message}";
+			StateHasChanged();
+		}
+	}
+}
